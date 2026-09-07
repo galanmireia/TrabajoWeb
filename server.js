@@ -246,6 +246,18 @@ app.get('/api/business', (req, res) => {
   res.json(business);
 });
 
+// Borra todas las reservas guardadas. Util para limpiar datos de prueba
+// (como los antiguos registros con campos en espanol) antes de grabar el
+// video o de entregar el proyecto a un cliente real.
+app.get('/admin/reset', (req, res) => {
+  if (req.query.clave !== process.env.ADMIN_SECRET) {
+    return res.status(403).send('Access denied. Add ?clave=YOUR_ADMIN_SECRET to the URL.');
+  }
+
+  fs.writeFileSync(APPOINTMENTS_FILE, '[]');
+  res.send('All bookings cleared. <a href="/admin/citas?clave=' + encodeURIComponent(req.query.clave) + '">View dashboard</a>');
+});
+
 // Vista simple para que el dueno del negocio (o nosotros, en el demo) pueda
 // ver las citas registradas. Protegida con una palabra secreta por URL para
 // no dejar los datos de clientes totalmente publicos.
