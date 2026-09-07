@@ -4,6 +4,7 @@
   "tone": "cercano, profesional y breve",
   "horario": "Lunes a viernes de 9:00 a 20:00, sabados de 10:00 a 14:00",
   "direccion": "Calle Mayor 12, Madrid",
+  "email_notificaciones": "galanmireia3@gmail.com",
   "servicios": [
     { "nombre": "Revision y limpieza", "precio": "45 EUR", "duracion": "30 min" },
     { "nombre": "Blanqueamiento dental", "precio": "150 EUR", "duracion": "60 min" },

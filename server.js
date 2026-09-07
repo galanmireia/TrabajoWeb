@@ -4,9 +4,37 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const business = require('./config/business.json');
+
+const mailer =
+  process.env.EMAIL_USER && process.env.EMAIL_PASS
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      })
+    : null;
+
+// Avisa al dueno del negocio por email de que ha entrado una reserva nueva.
+// Si no hay credenciales de email configuradas (o no hay direccion de aviso
+// en config/business.json), simplemente no hace nada: el email es un extra,
+// nunca debe romper la reserva en si.
+async function avisarPorEmail(cita) {
+  if (!mailer || !business.email_notificaciones) return;
+
+  try {
+    await mailer.sendMail({
+      from: `"${business.name}" <${process.env.EMAIL_USER}>`,
+      to: business.email_notificaciones,
+      subject: `Nueva reserva: ${cita.nombre} - ${cita.fecha_hora}`,
+      text: `Se ha registrado una nueva cita.\n\nNombre: ${cita.nombre}\nServicio: ${cita.servicio}\nFecha/hora: ${cita.fecha_hora}\nTelefono: ${cita.telefono || 'no proporcionado'}`,
+    });
+  } catch (err) {
+    console.error('Error enviando email de aviso', err);
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
@@ -126,6 +154,7 @@ async function runAssistant(messages) {
           };
         }
         const cita = guardarCita(block.input);
+        avisarPorEmail(cita); // no bloqueante: un fallo de email no debe romper la reserva
         return {
           type: 'tool_result',
           tool_use_id: block.id,
