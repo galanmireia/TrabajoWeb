@@ -37,6 +37,27 @@ Abre `http://localhost:3000` y prueba el chat (boton abajo a la derecha).
    - Una reserva de cita completa (nombre, servicio, fecha/hora).
 4. Ese video es el material para los gigs de Fiverr/Upwork.
 
+## Como se integra en la web de un cliente real
+
+El cliente no toca nada de este codigo. Solo pega una linea antes de `</body>` en su
+propia web (WordPress, Wix, Shopify, HTML a mano, lo que sea):
+
+```html
+<script src="https://TU-DEPLOY.up.railway.app/embed.js"></script>
+```
+
+`public/embed.js` es un script autocontenido: crea el boton flotante y el panel de
+chat dentro de un Shadow DOM (para no chocar con el CSS de la web del cliente) y
+llama siempre al backend desplegado (no a rutas relativas), asi que funciona sin
+importar en que dominio se inserte.
+
+Para el modelo actual (un negocio = un deploy), cada cliente nuevo es: clonar este
+proyecto, editar `config/business.json` con sus datos, desplegar su propia instancia
+en Railway, y darle su propio snippet de `embed.js`. El siguiente paso, cuando haya
+varios clientes, es pasar a un backend multi-tenant (una sola instancia que sirva
+distintos `business.json` segun un identificador en el snippet) para no tener que
+mantener un deploy por cliente.
+
 ## Siguiente paso hacia la version "producto" (WhatsApp real)
 
 Esta version usa un widget web para que el demo se pueda ensenar sin depender de
