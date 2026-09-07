@@ -30,11 +30,18 @@ function buildSystemPrompt() {
   const faq = business.faq
     .map((f) => `P: ${f.pregunta}\nR: ${f.respuesta}`)
     .join('\n\n');
+  const hoy = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
   return `Eres el asistente virtual de "${business.name}" (${business.sector}).
 Tono: ${business.tone}.
 Horario: ${business.horario}.
 Direccion: ${business.direccion}.
+Hoy es ${hoy}. Usa esta fecha para calcular a que dia se refiere el cliente cuando dice "hoy", "manana", "el jueves", etc.
 
 Servicios y precios:
 ${servicios}
@@ -44,8 +51,9 @@ ${faq}
 
 Reglas:
 - Responde siempre en espanol, en frases cortas, como si fuera un chat de WhatsApp.
-- Si el usuario quiere reservar cita, pide (uno por mensaje si hace falta): nombre, servicio deseado, y fecha/hora preferida.
-- En cuanto tengas nombre, servicio y fecha/hora, usa la herramienta reservar_cita para registrar la reserva. No inventes disponibilidad real, solo confirma que ha quedado registrada.
+- Si el usuario quiere reservar cita, pide (uno por mensaje si hace falta): nombre, servicio deseado, y fecha/hora preferida. Convierte "manana", "el jueves", etc. a una fecha concreta antes de llamar a la herramienta.
+- En cuanto tengas nombre, servicio y fecha/hora, usa la herramienta reservar_cita para intentar registrar la reserva.
+- Si la herramienta responde que ese horario ya esta ocupado, dilo con naturalidad y pide al cliente otra fecha/hora alternativa. No confirmes nunca una cita que la herramienta no haya registrado con exito.
 - Si preguntan algo que no esta en esta informacion, dilo con honestidad y ofrece que un humano del centro lo confirme.`;
 }
 
@@ -66,8 +74,25 @@ const tools = [
   },
 ];
 
+function leerCitas() {
+  return JSON.parse(fs.readFileSync(APPOINTMENTS_FILE, 'utf8'));
+}
+
+function normalizar(texto) {
+  return texto.trim().toLowerCase();
+}
+
+// Comprobacion sencilla: si ya existe una cita guardada con la misma
+// fecha/hora (comparando el texto tal cual), se considera ocupada. No es un
+// calendario real con duraciones ni huecos, pero evita el caso mas obvio: dos
+// reservas exactamente a la misma hora.
+function horarioOcupado(fechaHora) {
+  const citas = leerCitas();
+  return citas.some((c) => normalizar(c.fecha_hora) === normalizar(fechaHora));
+}
+
 function guardarCita(input) {
-  const citas = JSON.parse(fs.readFileSync(APPOINTMENTS_FILE, 'utf8'));
+  const citas = leerCitas();
   const cita = { ...input, creada_en: new Date().toISOString() };
   citas.push(cita);
   fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(citas, null, 2));
@@ -92,6 +117,14 @@ async function runAssistant(messages) {
     const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
     const toolResults = toolUseBlocks.map((block) => {
       if (block.name === 'reservar_cita') {
+        if (horarioOcupado(block.input.fecha_hora)) {
+          return {
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: `Ese horario (${block.input.fecha_hora}) ya esta ocupado por otra cita. Pide al cliente una fecha/hora alternativa.`,
+            is_error: true,
+          };
+        }
         const cita = guardarCita(block.input);
         return {
           type: 'tool_result',
@@ -141,6 +174,52 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/api/business', (req, res) => {
   res.json(business);
+});
+
+// Vista simple para que el dueno del negocio (o nosotros, en el demo) pueda
+// ver las citas registradas. Protegida con una palabra secreta por URL para
+// no dejar los datos de clientes totalmente publicos.
+app.get('/admin/citas', (req, res) => {
+  if (req.query.clave !== process.env.ADMIN_SECRET) {
+    return res.status(403).send('Acceso denegado. Anade ?clave=TU_ADMIN_SECRET a la URL.');
+  }
+
+  const citas = leerCitas();
+  const filas = citas
+    .slice()
+    .reverse()
+    .map(
+      (c) => `<tr>
+        <td>${c.nombre}</td>
+        <td>${c.servicio}</td>
+        <td>${c.fecha_hora}</td>
+        <td>${c.telefono || '-'}</td>
+        <td>${new Date(c.creada_en).toLocaleString('es-ES')}</td>
+      </tr>`
+    )
+    .join('');
+
+  res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reservas - ${business.name}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; background: #f8fafc; }
+    table { border-collapse: collapse; width: 100%; background: white; }
+    th, td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #2563eb; color: white; }
+  </style>
+</head>
+<body>
+  <h1>Reservas de ${business.name}</h1>
+  <p>${citas.length} cita(s) registrada(s).</p>
+  <table>
+    <thead><tr><th>Nombre</th><th>Servicio</th><th>Fecha/hora</th><th>Telefono</th><th>Registrada el</th></tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+</body>
+</html>`);
 });
 
 // --- Integracion con WhatsApp (Meta Cloud API) ---
