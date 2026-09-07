@@ -4,29 +4,26 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const business = require('./config/business.json');
 
-const mailer =
-  process.env.EMAIL_USER && process.env.EMAIL_PASS
-    ? nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      })
-    : null;
+// Usamos Resend (email por API HTTPS) en vez de SMTP directo: Railway (como
+// la mayoria de plataformas cloud) bloquea las conexiones SMTP salientes,
+// asi que un envio por Gmail/SMTP normal nunca llegaria desde aqui.
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Avisa al dueno del negocio por email de que ha entrado una reserva nueva.
 // Si no hay credenciales de email configuradas (o no hay direccion de aviso
 // en config/business.json), simplemente no hace nada: el email es un extra,
 // nunca debe romper la reserva en si.
 async function avisarPorEmail(cita) {
-  if (!mailer || !business.email_notificaciones) return;
+  if (!resend || !business.email_notificaciones) return;
 
   try {
-    await mailer.sendMail({
-      from: `"${business.name}" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
       to: business.email_notificaciones,
       subject: `Nueva reserva: ${cita.nombre} - ${cita.fecha_hora}`,
       text: `Se ha registrado una nueva cita.\n\nNombre: ${cita.nombre}\nServicio: ${cita.servicio}\nFecha/hora: ${cita.fecha_hora}\nTelefono: ${cita.telefono || 'no proporcionado'}`,
