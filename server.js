@@ -14,6 +14,46 @@ const business = require('./config/business.json');
 // asi que un envio por Gmail/SMTP normal nunca llegaria desde aqui.
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+function escapeHtml(valor) {
+  return String(valor)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Email en HTML con estilos en linea (asi se ve bien en Gmail/Outlook, que
+// ignoran las hojas de estilo externas). Se manda junto a una version en
+// texto plano para los pocos clientes que no rendericen HTML.
+function buildEmailHtml(cita) {
+  const fila = (etiqueta, valor) => `
+    <tr>
+      <td style="padding:10px 0;color:#64748b;font-size:14px;width:120px;">${etiqueta}</td>
+      <td style="padding:10px 0;color:#0f172a;font-size:15px;font-weight:600;">${escapeHtml(valor)}</td>
+    </tr>`;
+
+  return `<div style="background:#f1f5f9;padding:32px 16px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
+    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(15,23,42,0.08);">
+      <div style="background:#2563eb;padding:24px 28px;">
+        <p style="margin:0;color:#bfdbfe;font-size:13px;letter-spacing:0.05em;text-transform:uppercase;">Nueva reserva</p>
+        <p style="margin:4px 0 0;color:#ffffff;font-size:20px;font-weight:700;">${escapeHtml(business.name)}</p>
+      </div>
+      <div style="padding:24px 28px;">
+        <table style="width:100%;border-collapse:collapse;">
+          ${fila('Cliente', cita.nombre)}
+          ${fila('Servicio', cita.servicio)}
+          ${fila('Fecha/hora', cita.fecha_hora)}
+          ${fila('Telefono', cita.telefono || 'no proporcionado')}
+        </table>
+      </div>
+      <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+        <p style="margin:0;color:#94a3b8;font-size:12px;">Aviso automatico generado por tu asistente de IA. Consulta todas las reservas en tu panel de citas.</p>
+      </div>
+    </div>
+  </div>`;
+}
+
 // Avisa al dueno del negocio por email de que ha entrado una reserva nueva.
 // Si no hay credenciales de email configuradas (o no hay direccion de aviso
 // en config/business.json), simplemente no hace nada: el email es un extra,
@@ -27,6 +67,7 @@ async function avisarPorEmail(cita) {
       to: business.email_notificaciones,
       subject: `Nueva reserva: ${cita.nombre} - ${cita.fecha_hora}`,
       text: `Se ha registrado una nueva cita.\n\nNombre: ${cita.nombre}\nServicio: ${cita.servicio}\nFecha/hora: ${cita.fecha_hora}\nTelefono: ${cita.telefono || 'no proporcionado'}`,
+      html: buildEmailHtml(cita),
     });
   } catch (err) {
     console.error('Error enviando email de aviso', err);
@@ -210,40 +251,69 @@ app.get('/admin/citas', (req, res) => {
     return res.status(403).send('Acceso denegado. Anade ?clave=TU_ADMIN_SECRET a la URL.');
   }
 
-  const citas = leerCitas();
-  const filas = citas
-    .slice()
-    .reverse()
-    .map(
-      (c) => `<tr>
-        <td>${c.nombre}</td>
-        <td>${c.servicio}</td>
-        <td>${c.fecha_hora}</td>
-        <td>${c.telefono || '-'}</td>
-        <td>${new Date(c.creada_en).toLocaleString('es-ES')}</td>
-      </tr>`
-    )
-    .join('');
+  const citas = leerCitas().slice().reverse();
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
+  const citasHoy = citas.filter((c) => new Date(c.creada_en) >= inicioHoy).length;
+  const ultimaCita = citas[0] ? new Date(citas[0].creada_en).toLocaleString('es-ES') : '-';
+
+  const filas = citas.length
+    ? citas
+        .map(
+          (c, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding:12px 16px;font-weight:600;color:#0f172a;">${escapeHtml(c.nombre)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.servicio)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.fecha_hora)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.telefono || '-')}</td>
+            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">${new Date(c.creada_en).toLocaleString('es-ES')}</td>
+          </tr>`
+        )
+        .join('')
+    : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#94a3b8;">Todavia no hay ninguna reserva registrada.</td></tr>`;
 
   res.send(`<!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Reservas - ${business.name}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reservas - ${escapeHtml(business.name)}</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 2rem; background: #f8fafc; }
-    table { border-collapse: collapse; width: 100%; background: white; }
-    th, td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
-    th { background: #2563eb; color: white; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
+    header { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; padding: 2.5rem 2rem 3.5rem; }
+    header p.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; color: #bfdbfe; }
+    header h1 { margin: 0.35rem 0 0; font-size: 1.75rem; }
+    .wrap { max-width: 960px; margin: -2.5rem auto 3rem; padding: 0 1.5rem; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat { background: white; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+    .stat .num { font-size: 1.75rem; font-weight: 700; color: #2563eb; }
+    .stat .label { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 16px rgba(15,23,42,0.06); overflow: hidden; }
+    table { border-collapse: collapse; width: 100%; }
+    th { text-align: left; padding: 12px 16px; background: #eff6ff; color: #1e40af; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .scroll { overflow-x: auto; }
   </style>
 </head>
 <body>
-  <h1>Reservas de ${business.name}</h1>
-  <p>${citas.length} cita(s) registrada(s).</p>
-  <table>
-    <thead><tr><th>Nombre</th><th>Servicio</th><th>Fecha/hora</th><th>Telefono</th><th>Registrada el</th></tr></thead>
-    <tbody>${filas}</tbody>
-  </table>
+  <header>
+    <p class="eyebrow">Panel de reservas</p>
+    <h1>${escapeHtml(business.name)}</h1>
+  </header>
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><div class="num">${citas.length}</div><div class="label">Reservas totales</div></div>
+      <div class="stat"><div class="num">${citasHoy}</div><div class="label">Registradas hoy</div></div>
+      <div class="stat"><div class="num" style="font-size:1.1rem;">${ultimaCita}</div><div class="label">Ultima reserva</div></div>
+    </div>
+    <div class="card">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Nombre</th><th>Servicio</th><th>Fecha/hora</th><th>Telefono</th><th>Registrada el</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </body>
 </html>`);
 });
