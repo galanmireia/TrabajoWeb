@@ -76,7 +76,10 @@ async function avisarPorEmail(cita) {
 
 const PORT = process.env.PORT || 3000;
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
-const DATA_DIR = path.join(__dirname, 'data');
+// En Railway, DATA_DIR apunta a un volumen persistente (ver README) para que
+// las reservas sobrevivan a los redespliegues. Sin esa variable, cae en una
+// carpeta local normal, util para desarrollo.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const APPOINTMENTS_FILE = path.join(DATA_DIR, 'appointments.json');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
