@@ -9,8 +9,8 @@ async function loadBusinessInfo() {
     servicios.appendChild(li);
   });
 
-  document.getElementById('horario').textContent = `Horario: ${business.horario}`;
-  document.getElementById('direccion').textContent = `Direccion: ${business.direccion}`;
+  document.getElementById('horario').textContent = `Hours: ${business.horario}`;
+  document.getElementById('direccion').textContent = `Address: ${business.direccion}`;
 }
 
 loadBusinessInfo();

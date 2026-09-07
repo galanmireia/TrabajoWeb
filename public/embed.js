@@ -29,16 +29,16 @@
   var container = document.createElement('div');
   container.className = 'chat-widget';
   container.innerHTML = [
-    '<button class="chat-toggle" type="button">Chatea con nosotros</button>',
+    '<button class="chat-toggle" type="button">Chat with us</button>',
     '<div class="chat-panel hidden">',
     '  <div class="chat-header">',
-    '    <span>Asistente virtual</span>',
+    '    <span>Virtual assistant</span>',
     '    <button type="button" class="chat-close">&times;</button>',
     '  </div>',
     '  <div class="chat-messages"></div>',
     '  <form class="chat-form">',
-    '    <input type="text" placeholder="Escribe tu mensaje..." autocomplete="off" required />',
-    '    <button type="submit">Enviar</button>',
+    '    <input type="text" placeholder="Type your message..." autocomplete="off" required />',
+    '    <button type="submit">Send</button>',
     '  </form>',
     '</div>',
   ].join('\n');
@@ -85,19 +85,19 @@
       });
       var data = await res.json();
       if (data.error) {
-        appendMessage('bot', 'Lo siento, ha ocurrido un error. Intentalo de nuevo en un momento.');
+        appendMessage('bot', 'Sorry, something went wrong. Please try again in a moment.');
         return;
       }
       conversation = data.messages;
       appendMessage('bot', data.reply);
     } catch (err) {
-      appendMessage('bot', 'No he podido conectar con el servidor.');
+      appendMessage('bot', 'I couldn\'t connect to the server.');
     }
   });
 
   fetch(API_BASE + '/api/business')
     .then(function (res) { return res.json(); })
     .then(function (business) {
-      appendMessage('bot', 'Hola! Soy el asistente de ' + business.name + '. Puedo responder tus dudas o reservarte una cita. En que puedo ayudarte?');
+      appendMessage('bot', 'Hi! I\'m the assistant for ' + business.name + '. I can answer your questions or book an appointment for you. How can I help?');
     });
 })();

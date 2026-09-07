@@ -36,19 +36,19 @@ function buildEmailHtml(cita) {
   return `<div style="background:#f1f5f9;padding:32px 16px;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
     <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(15,23,42,0.08);">
       <div style="background:#2563eb;padding:24px 28px;">
-        <p style="margin:0;color:#bfdbfe;font-size:13px;letter-spacing:0.05em;text-transform:uppercase;">Nueva reserva</p>
+        <p style="margin:0;color:#bfdbfe;font-size:13px;letter-spacing:0.05em;text-transform:uppercase;">New booking</p>
         <p style="margin:4px 0 0;color:#ffffff;font-size:20px;font-weight:700;">${escapeHtml(business.name)}</p>
       </div>
       <div style="padding:24px 28px;">
         <table style="width:100%;border-collapse:collapse;">
-          ${fila('Cliente', cita.nombre)}
-          ${fila('Servicio', cita.servicio)}
-          ${fila('Fecha/hora', cita.fecha_hora)}
-          ${fila('Telefono', cita.telefono || 'no proporcionado')}
+          ${fila('Customer', cita.name)}
+          ${fila('Service', cita.service)}
+          ${fila('Date/time', cita.date_time)}
+          ${fila('Phone', cita.phone || 'not provided')}
         </table>
       </div>
       <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-        <p style="margin:0;color:#94a3b8;font-size:12px;">Aviso automatico generado por tu asistente de IA. Consulta todas las reservas en tu panel de citas.</p>
+        <p style="margin:0;color:#94a3b8;font-size:12px;">Automatic notification from your AI assistant. See all bookings in your appointments dashboard.</p>
       </div>
     </div>
   </div>`;
@@ -65,8 +65,8 @@ async function avisarPorEmail(cita) {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
       to: business.email_notificaciones,
-      subject: `Nueva reserva: ${cita.nombre} - ${cita.fecha_hora}`,
-      text: `Se ha registrado una nueva cita.\n\nNombre: ${cita.nombre}\nServicio: ${cita.servicio}\nFecha/hora: ${cita.fecha_hora}\nTelefono: ${cita.telefono || 'no proporcionado'}`,
+      subject: `New booking: ${cita.name} - ${cita.date_time}`,
+      text: `A new appointment has been booked.\n\nName: ${cita.name}\nService: ${cita.service}\nDate/time: ${cita.date_time}\nPhone: ${cita.phone || 'not provided'}`,
       html: buildEmailHtml(cita),
     });
   } catch (err) {
@@ -97,48 +97,48 @@ function buildSystemPrompt() {
     .map((s) => `- ${s.nombre}: ${s.precio} (${s.duracion})`)
     .join('\n');
   const faq = business.faq
-    .map((f) => `P: ${f.pregunta}\nR: ${f.respuesta}`)
+    .map((f) => `Q: ${f.pregunta}\nA: ${f.respuesta}`)
     .join('\n\n');
-  const hoy = new Date().toLocaleDateString('es-ES', {
+  const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
 
-  return `Eres el asistente virtual de "${business.name}" (${business.sector}).
-Tono: ${business.tone}.
-Horario: ${business.horario}.
-Direccion: ${business.direccion}.
-Hoy es ${hoy}. Usa esta fecha para calcular a que dia se refiere el cliente cuando dice "hoy", "manana", "el jueves", etc.
+  return `You are the virtual assistant for "${business.name}" (${business.sector}).
+Tone: ${business.tone}.
+Hours: ${business.horario}.
+Address: ${business.direccion}.
+Today is ${today}. Use this date to work out what day the customer means when they say "today", "tomorrow", "next Thursday", etc.
 
-Servicios y precios:
+Services and prices:
 ${servicios}
 
-Preguntas frecuentes:
+Frequently asked questions:
 ${faq}
 
-Reglas:
-- Responde siempre en espanol, en frases cortas, como si fuera un chat de WhatsApp.
-- Si el usuario quiere reservar cita, pide (uno por mensaje si hace falta): nombre, servicio deseado, y fecha/hora preferida. Convierte "manana", "el jueves", etc. a una fecha concreta antes de llamar a la herramienta.
-- En cuanto tengas nombre, servicio y fecha/hora, usa la herramienta reservar_cita para intentar registrar la reserva.
-- Si la herramienta responde que ese horario ya esta ocupado, dilo con naturalidad y pide al cliente otra fecha/hora alternativa. No confirmes nunca una cita que la herramienta no haya registrado con exito.
-- Si preguntan algo que no esta en esta informacion, dilo con honestidad y ofrece que un humano del centro lo confirme.`;
+Rules:
+- Always reply in English, in short sentences, like a WhatsApp chat.
+- If the customer wants to book an appointment, ask (one per message if needed) for: name, desired service, and preferred date/time. Convert "tomorrow", "next Thursday", etc. into a specific date before calling the tool.
+- As soon as you have name, service and date/time, use the book_appointment tool to try to register the booking.
+- If the tool says that time slot is already taken, say so naturally and ask the customer for an alternative date/time. Never confirm an appointment the tool hasn't successfully registered.
+- If asked something not covered by this information, say so honestly and offer to have a staff member confirm it.`;
 }
 
 const tools = [
   {
-    name: 'reservar_cita',
-    description: 'Registra una cita cuando el usuario ha dado nombre, servicio y fecha/hora preferida.',
+    name: 'book_appointment',
+    description: 'Books an appointment once the customer has given a name, service and preferred date/time.',
     input_schema: {
       type: 'object',
       properties: {
-        nombre: { type: 'string', description: 'Nombre del cliente' },
-        servicio: { type: 'string', description: 'Servicio solicitado' },
-        fecha_hora: { type: 'string', description: 'Fecha y hora preferida tal como la ha dado el cliente' },
-        telefono: { type: 'string', description: 'Telefono de contacto si lo ha dado' },
+        name: { type: 'string', description: 'Customer name' },
+        service: { type: 'string', description: 'Requested service' },
+        date_time: { type: 'string', description: 'Preferred date and time, as given by the customer' },
+        phone: { type: 'string', description: 'Contact phone number, if provided' },
       },
-      required: ['nombre', 'servicio', 'fecha_hora'],
+      required: ['name', 'service', 'date_time'],
     },
   },
 ];
@@ -155,14 +155,14 @@ function normalizar(texto) {
 // fecha/hora (comparando el texto tal cual), se considera ocupada. No es un
 // calendario real con duraciones ni huecos, pero evita el caso mas obvio: dos
 // reservas exactamente a la misma hora.
-function horarioOcupado(fechaHora) {
+function horarioOcupado(dateTime) {
   const citas = leerCitas();
-  return citas.some((c) => normalizar(c.fecha_hora) === normalizar(fechaHora));
+  return citas.some((c) => normalizar(c.date_time) === normalizar(dateTime));
 }
 
 function guardarCita(input) {
   const citas = leerCitas();
-  const cita = { ...input, creada_en: new Date().toISOString() };
+  const cita = { ...input, created_at: new Date().toISOString() };
   citas.push(cita);
   fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(citas, null, 2));
   return cita;
@@ -185,27 +185,27 @@ async function runAssistant(messages) {
   while (response.stop_reason === 'tool_use') {
     const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
     const toolResults = toolUseBlocks.map((block) => {
-      if (block.name === 'reservar_cita') {
-        if (horarioOcupado(block.input.fecha_hora)) {
+      if (block.name === 'book_appointment') {
+        if (horarioOcupado(block.input.date_time)) {
           return {
             type: 'tool_result',
             tool_use_id: block.id,
-            content: `Ese horario (${block.input.fecha_hora}) ya esta ocupado por otra cita. Pide al cliente una fecha/hora alternativa.`,
+            content: `That time slot (${block.input.date_time}) is already booked. Ask the customer for an alternative date/time.`,
             is_error: true,
           };
         }
         const cita = guardarCita(block.input);
-        avisarPorEmail(cita); // no bloqueante: un fallo de email no debe romper la reserva
+        avisarPorEmail(cita); // fire-and-forget: an email failure should never break the booking
         return {
           type: 'tool_result',
           tool_use_id: block.id,
-          content: `Cita registrada: ${cita.nombre} - ${cita.servicio} - ${cita.fecha_hora}`,
+          content: `Appointment booked: ${cita.name} - ${cita.service} - ${cita.date_time}`,
         };
       }
       return {
         type: 'tool_result',
         tool_use_id: block.id,
-        content: 'Herramienta desconocida',
+        content: 'Unknown tool',
         is_error: true,
       };
     });
@@ -231,14 +231,14 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { messages } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'messages debe ser un array no vacio' });
+      return res.status(400).json({ error: 'messages must be a non-empty array' });
     }
 
     const result = await runAssistant(messages);
     res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error hablando con el asistente. Revisa tu ANTHROPIC_API_KEY.' });
+    res.status(500).json({ error: 'Error talking to the assistant. Check your ANTHROPIC_API_KEY.' });
   }
 });
 
@@ -251,35 +251,35 @@ app.get('/api/business', (req, res) => {
 // no dejar los datos de clientes totalmente publicos.
 app.get('/admin/citas', (req, res) => {
   if (req.query.clave !== process.env.ADMIN_SECRET) {
-    return res.status(403).send('Acceso denegado. Anade ?clave=TU_ADMIN_SECRET a la URL.');
+    return res.status(403).send('Access denied. Add ?clave=YOUR_ADMIN_SECRET to the URL.');
   }
 
   const citas = leerCitas().slice().reverse();
   const inicioHoy = new Date();
   inicioHoy.setHours(0, 0, 0, 0);
-  const citasHoy = citas.filter((c) => new Date(c.creada_en) >= inicioHoy).length;
-  const ultimaCita = citas[0] ? new Date(citas[0].creada_en).toLocaleString('es-ES') : '-';
+  const citasHoy = citas.filter((c) => new Date(c.created_at) >= inicioHoy).length;
+  const ultimaCita = citas[0] ? new Date(citas[0].created_at).toLocaleString('en-US') : '-';
 
   const filas = citas.length
     ? citas
         .map(
           (c, i) => `<tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-            <td style="padding:12px 16px;font-weight:600;color:#0f172a;">${escapeHtml(c.nombre)}</td>
-            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.servicio)}</td>
-            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.fecha_hora)}</td>
-            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.telefono || '-')}</td>
-            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">${new Date(c.creada_en).toLocaleString('es-ES')}</td>
+            <td style="padding:12px 16px;font-weight:600;color:#0f172a;">${escapeHtml(c.name)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.service)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.date_time)}</td>
+            <td style="padding:12px 16px;color:#334155;">${escapeHtml(c.phone || '-')}</td>
+            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">${new Date(c.created_at).toLocaleString('en-US')}</td>
           </tr>`
         )
         .join('')
-    : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#94a3b8;">Todavia no hay ninguna reserva registrada.</td></tr>`;
+    : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#94a3b8;">No bookings yet.</td></tr>`;
 
   res.send(`<!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reservas - ${escapeHtml(business.name)}</title>
+  <title>Bookings - ${escapeHtml(business.name)}</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; }
@@ -299,19 +299,19 @@ app.get('/admin/citas', (req, res) => {
 </head>
 <body>
   <header>
-    <p class="eyebrow">Panel de reservas</p>
+    <p class="eyebrow">Bookings dashboard</p>
     <h1>${escapeHtml(business.name)}</h1>
   </header>
   <div class="wrap">
     <div class="stats">
-      <div class="stat"><div class="num">${citas.length}</div><div class="label">Reservas totales</div></div>
-      <div class="stat"><div class="num">${citasHoy}</div><div class="label">Registradas hoy</div></div>
-      <div class="stat"><div class="num" style="font-size:1.1rem;">${ultimaCita}</div><div class="label">Ultima reserva</div></div>
+      <div class="stat"><div class="num">${citas.length}</div><div class="label">Total bookings</div></div>
+      <div class="stat"><div class="num">${citasHoy}</div><div class="label">Booked today</div></div>
+      <div class="stat"><div class="num" style="font-size:1.1rem;">${ultimaCita}</div><div class="label">Latest booking</div></div>
     </div>
     <div class="card">
       <div class="scroll">
         <table>
-          <thead><tr><th>Nombre</th><th>Servicio</th><th>Fecha/hora</th><th>Telefono</th><th>Registrada el</th></tr></thead>
+          <thead><tr><th>Name</th><th>Service</th><th>Date/time</th><th>Phone</th><th>Booked on</th></tr></thead>
           <tbody>${filas}</tbody>
         </table>
       </div>
