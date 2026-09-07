@@ -58,9 +58,27 @@ varios clientes, es pasar a un backend multi-tenant (una sola instancia que sirv
 distintos `business.json` segun un identificador en el snippet) para no tener que
 mantener un deploy por cliente.
 
-## Siguiente paso hacia la version "producto" (WhatsApp real)
+## Conectar WhatsApp real (Meta Cloud API)
 
-Esta version usa un widget web para que el demo se pueda ensenar sin depender de
-aprobaciones externas. El siguiente paso para un cliente real es conectar el mismo
-endpoint `/api/chat` a la API de WhatsApp Business Cloud (Meta) en lugar del widget web,
-reutilizando toda la logica del asistente y de reserva de citas tal cual esta.
+El servidor ya tiene los endpoints necesarios (`GET/POST /webhook/whatsapp`), reutilizando
+la misma logica del asistente que usa el widget web. Para activarlo:
+
+1. Crea una cuenta en **business.facebook.com** (Meta Business) si no tienes una.
+2. Ve a **developers.facebook.com** → My Apps → Create App → tipo "Business" → vincula
+   la cuenta de Meta Business del paso 1.
+3. Dentro de la app, anade el producto **WhatsApp**. Meta te da automaticamente un
+   numero de prueba gratuito y un token temporal (24h) para probar.
+4. En "API Setup", anade tu propio movil como numero verificado para poder recibir
+   mensajes de prueba.
+5. Copia el **Phone Number ID** y el **token de acceso**, y ponlos en las variables de
+   entorno `WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_TOKEN`.
+6. Define `WHATSAPP_VERIFY_TOKEN` con cualquier palabra secreta que tu elijas.
+7. En la configuracion del Webhook de la app (dentro de WhatsApp > Configuration),
+   pon como URL `https://TU-DEPLOY.up.railway.app/webhook/whatsapp` y el mismo
+   `WHATSAPP_VERIFY_TOKEN` del paso anterior. Suscribete al campo `messages`.
+8. Escribe al numero de prueba desde tu movil verificado — deberia responderte el
+   mismo asistente que ya tenemos.
+
+Para un cliente real, el unico cambio es usar el numero de WhatsApp Business de ESE
+negocio (verificado en su propia cuenta de Meta Business) en vez del numero de prueba,
+y un token permanente en vez del temporal de 24h.

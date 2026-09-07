@@ -74,6 +74,56 @@ function guardarCita(input) {
   return cita;
 }
 
+// Logica compartida por el widget web y por WhatsApp: dado el historial de la
+// conversacion, habla con Claude (resolviendo cualquier tool_use) y devuelve
+// la respuesta final en texto junto con el historial actualizado.
+async function runAssistant(messages) {
+  let response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    system: buildSystemPrompt(),
+    tools,
+    messages,
+  });
+
+  const conversation = [...messages, { role: 'assistant', content: response.content }];
+
+  while (response.stop_reason === 'tool_use') {
+    const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
+    const toolResults = toolUseBlocks.map((block) => {
+      if (block.name === 'reservar_cita') {
+        const cita = guardarCita(block.input);
+        return {
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: `Cita registrada: ${cita.nombre} - ${cita.servicio} - ${cita.fecha_hora}`,
+        };
+      }
+      return {
+        type: 'tool_result',
+        tool_use_id: block.id,
+        content: 'Herramienta desconocida',
+        is_error: true,
+      };
+    });
+
+    conversation.push({ role: 'user', content: toolResults });
+
+    response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      system: buildSystemPrompt(),
+      tools,
+      messages: conversation,
+    });
+
+    conversation.push({ role: 'assistant', content: response.content });
+  }
+
+  const textBlock = response.content.find((b) => b.type === 'text');
+  return { reply: textBlock ? textBlock.text : '', messages: conversation };
+}
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -81,53 +131,8 @@ app.post('/api/chat', async (req, res) => {
       return res.status(400).json({ error: 'messages debe ser un array no vacio' });
     }
 
-    let response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 500,
-      system: buildSystemPrompt(),
-      tools,
-      messages,
-    });
-
-    const conversation = [...messages, { role: 'assistant', content: response.content }];
-
-    while (response.stop_reason === 'tool_use') {
-      const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
-      const toolResults = toolUseBlocks.map((block) => {
-        if (block.name === 'reservar_cita') {
-          const cita = guardarCita(block.input);
-          return {
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: `Cita registrada: ${cita.nombre} - ${cita.servicio} - ${cita.fecha_hora}`,
-          };
-        }
-        return {
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: 'Herramienta desconocida',
-          is_error: true,
-        };
-      });
-
-      conversation.push({ role: 'user', content: toolResults });
-
-      response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 500,
-        system: buildSystemPrompt(),
-        tools,
-        messages: conversation,
-      });
-
-      conversation.push({ role: 'assistant', content: response.content });
-    }
-
-    const textBlock = response.content.find((b) => b.type === 'text');
-    res.json({
-      reply: textBlock ? textBlock.text : '',
-      messages: conversation,
-    });
+    const result = await runAssistant(messages);
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error hablando con el asistente. Revisa tu ANTHROPIC_API_KEY.' });
@@ -136,6 +141,68 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/api/business', (req, res) => {
   res.json(business);
+});
+
+// --- Integracion con WhatsApp (Meta Cloud API) ---
+// WhatsApp no manda el historial completo en cada mensaje, asi que guardamos
+// la conversacion de cada numero en memoria (se pierde si el servidor
+// reinicia; suficiente para el demo, para produccion real convendria una DB).
+const whatsappConversations = new Map();
+
+app.get('/webhook/whatsapp', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+async function sendWhatsAppMessage(to, text) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = process.env.WHATSAPP_TOKEN;
+
+  await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+  });
+}
+
+app.post('/webhook/whatsapp', async (req, res) => {
+  // Responder rapido a Meta para que no reintente el envio
+  res.sendStatus(200);
+
+  try {
+    const entry = req.body.entry?.[0];
+    const change = entry?.changes?.[0];
+    const message = change?.value?.messages?.[0];
+    if (!message || message.type !== 'text') return;
+
+    const from = message.from;
+    const text = message.text.body;
+
+    const history = whatsappConversations.get(from) || [];
+    history.push({ role: 'user', content: text });
+
+    const { reply, messages } = await runAssistant(history);
+    whatsappConversations.set(from, messages);
+
+    await sendWhatsAppMessage(from, reply);
+  } catch (err) {
+    console.error('Error procesando mensaje de WhatsApp', err);
+  }
 });
 
 app.listen(PORT, () => {
