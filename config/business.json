@@ -1,0 +1,18 @@
+{
+  "name": "Clinica Sonrisa",
+  "sector": "Clinica dental",
+  "tone": "cercano, profesional y breve",
+  "horario": "Lunes a viernes de 9:00 a 20:00, sabados de 10:00 a 14:00",
+  "direccion": "Calle Mayor 12, Madrid",
+  "servicios": [
+    { "nombre": "Revision y limpieza", "precio": "45 EUR", "duracion": "30 min" },
+    { "nombre": "Blanqueamiento dental", "precio": "150 EUR", "duracion": "60 min" },
+    { "nombre": "Ortodoncia invisible (consulta inicial)", "precio": "Gratis", "duracion": "20 min" },
+    { "nombre": "Empaste", "precio": "desde 60 EUR", "duracion": "30-45 min" }
+  ],
+  "faq": [
+    { "pregunta": "Aceptais seguro medico?", "respuesta": "Trabajamos con Sanitas, Adeslas y DKV. Si tienes otro seguro, preguntanos y lo confirmamos." },
+    { "pregunta": "Hay aparcamiento?", "respuesta": "Si, hay un parking publico justo al lado de la clinica." },
+    { "pregunta": "Puedo cancelar una cita?", "respuesta": "Si, puedes cancelar o cambiar tu cita hasta 24 horas antes sin coste." }
+  ]
+}

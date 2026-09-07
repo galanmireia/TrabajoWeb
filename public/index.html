@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinica Sonrisa</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Clinica Sonrisa</h1>
+    <p>Tu clinica dental de confianza en Madrid. Revision, blanqueamiento, ortodoncia y mucho mas.</p>
+  </header>
+
+  <main class="content">
+    <section>
+      <h2>Nuestros servicios</h2>
+      <ul id="servicios" class="servicios"></ul>
+    </section>
+    <section>
+      <h2>Horario</h2>
+      <p id="horario"></p>
+      <p id="direccion"></p>
+    </section>
+  </main>
+
+  <div id="chat-widget" class="chat-widget">
+    <button id="chat-toggle" class="chat-toggle">Chatea con nosotros</button>
+    <div id="chat-panel" class="chat-panel hidden">
+      <div class="chat-header">
+        <span>Asistente virtual</span>
+        <button id="chat-close">&times;</button>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="Escribe tu mensaje..." autocomplete="off" required />
+        <button type="submit">Enviar</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="widget.js"></script>
+</body>
+</html>
