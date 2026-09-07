@@ -355,7 +355,7 @@ async function sendWhatsAppMessage(to, text) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
 
-  await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+  const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -368,6 +368,11 @@ async function sendWhatsAppMessage(to, text) {
       text: { body: text },
     }),
   });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`WhatsApp send failed (${res.status}):`, body);
+  }
 }
 
 app.post('/webhook/whatsapp', async (req, res) => {
