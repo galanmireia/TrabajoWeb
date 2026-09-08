@@ -374,6 +374,33 @@ app.get('/admin/whatsapp/resubscribe', async (req, res) => {
   }
 });
 
+// Diagnostico: lista que apps estan realmente suscritas a esta cuenta de
+// WhatsApp Business ahora mismo, segun Meta (no segun lo que creemos que
+// hicimos). Tambien comprueba que el phone number ID responde.
+app.get('/admin/whatsapp/status', async (req, res) => {
+  if (req.query.clave !== process.env.ADMIN_SECRET) {
+    return res.status(403).send('Access denied. Add ?clave=YOUR_ADMIN_SECRET to the URL.');
+  }
+
+  const wabaId = process.env.WHATSAPP_WABA_ID;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = process.env.WHATSAPP_TOKEN;
+
+  const [subs, phone] = await Promise.all([
+    fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async (r) => ({ status: r.status, body: await r.text() })),
+    fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async (r) => ({ status: r.status, body: await r.text() })),
+  ]);
+
+  res.type('text/plain').send(
+    `Subscribed apps (GET ${wabaId}/subscribed_apps):\nStatus ${subs.status}\n${subs.body}\n\n` +
+      `Phone number info (GET ${phoneNumberId}):\nStatus ${phone.status}\n${phone.body}`
+  );
+});
+
 async function sendWhatsAppMessage(to, text) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
