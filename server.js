@@ -351,6 +351,29 @@ app.get('/webhook/whatsapp', (req, res) => {
   }
 });
 
+// Diagnostico/reparacion: a veces la cuenta de WhatsApp Business se
+// "desuscribe" de la app (p.ej. tras cambiar roles/permisos en Meta) y deja
+// de reenviar mensajes al webhook aunque este siga marcado como suscrito en
+// la app. Esto vuelve a suscribirla explicitamente.
+app.get('/admin/whatsapp/resubscribe', async (req, res) => {
+  if (req.query.clave !== process.env.ADMIN_SECRET) {
+    return res.status(403).send('Access denied. Add ?clave=YOUR_ADMIN_SECRET to the URL.');
+  }
+
+  try {
+    const wabaId = process.env.WHATSAPP_WABA_ID;
+    const token = process.env.WHATSAPP_TOKEN;
+    const result = await fetch(`https://graph.facebook.com/v20.0/${wabaId}/subscribed_apps`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await result.text();
+    res.status(result.status).send(`Status ${result.status}: ${body}`);
+  } catch (err) {
+    res.status(500).send(String(err));
+  }
+});
+
 async function sendWhatsAppMessage(to, text) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_TOKEN;
